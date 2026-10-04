@@ -1,3 +1,4 @@
+import bcrypt from 'bcryptjs';
 import User from '../models/User.js';
 import asyncHandler from '../utils/asyncHandler.js';
 import generateToken from '../utils/generateToken.js';
@@ -35,7 +36,17 @@ export const login = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
   const user = await User.findOne({ email }).select('+password');
 
-  if (!user || !(await user.matchPassword(password))) {
+  let isMatch = false;
+  if (user) {
+    isMatch = await user.matchPassword(password);
+  } else {
+    // Mitigate Timing Attack: Even if the user is not found, spend the same 
+    // amount of CPU time hashing the password so attackers can't measure 
+    // response times to harvest valid emails.
+    await bcrypt.hash(password, 10);
+  }
+
+  if (!user || !isMatch) {
     res.status(401);
     throw new Error('Invalid email or password');
   }
